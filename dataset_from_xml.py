@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from sklearn import preprocessing
+from multiprocessing import Pool
 
 import os 
 import glob
@@ -8,8 +9,11 @@ import re
 
 import numpy as np
 
+PICTURES_PATH = "/home/matthia/Downloads/rijksjpg/jpg2/"
 METADATA_PATH = "/home/matthia/Documents/PhD/data/metadata/xml2/"
 STORING_PATH = "/home/matthia/Documents/PhD/RijksmuseumChallenge/Dataset/type_labels/"
+
+PATHS = (PICTURES_PATH, METADATA_PATH)
 
 class XML_Parser(object):
 	def __init__(self):
@@ -42,37 +46,59 @@ class XML_Parser(object):
 	def get_date(self, metadata):
 		return(re.findall(self.date_start+'(.*?)'+self.date_end, metadata))
 
+	def check_existing(self, label, filename, mode):
+		if label != []:
+			return True
+		else:
+			print("Exception in file: ", filename)
+			print("While Looking for: ", mode)
+
 	def encoder(self, labels_to_encode):
 		le = preprocessing.LabelEncoder()
 		le.fit(labels_to_encode)
 		
 		return(le.transform(labels_to_encode))
 
-	def create_type_labels(self, labels):
+	def create_type_labels(self, labels, name):
 		encoded_type_labels = self.encoder(labels)
-		np.save(STORING_PATH+'type_labels.npy', encoded_type_labels)
+		np.save(STORING_PATH + name, encoded_type_labels)
 
 	def read_xml(self):
 
 		type_labels = list()
 		artist_labels = list()
+		material_labels = list()
+		dates = list()
 
 		i = 0
 
 		for subdir, dirs, files in os.walk(METADATA_PATH):
+			files.sort()
+
 			for file in files:
-				if file.endswith(".xml") and i < 100:
+				if file.endswith(".xml") and i < 1500:
 					metadata = self.get_metadata(file)
 					artist_name = self.get_artist_name(metadata)
+					type_name = self.get_type(metadata)
 					material_name = self.get_material(metadata)
 					date_interval = self.get_date(metadata)
-					print(date_interval)
 
-					type_labels.append(self.get_type(metadata))
+					if self.check_existing(artist_name, file, "artist_checker"):
+						artist_labels.append(artist_name)
+
+					if self.check_existing(type_name, file, "label_checker"):
+						type_labels.append(type_name)
+
+					if self.check_existing(material_name, file, "material_checker"):
+						material_labels.append(material_name)
+
+					if self.check_existing(date_interval, file, "dates_checker"):
+						dates.append(date_interval)
+
 					i += 1
 
-		self.create_type_labels(type_labels)
-					
+		self.create_type_labels(type_labels, 'type_labels.npy')
+
 	def main(self):
 		self.read_xml()
 		
