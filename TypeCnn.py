@@ -88,8 +88,10 @@ def main():
 	testing_images = np.asarray(splitted[1])
 	testing_labels = np.asarray(splitted[3])
 
-	train_X = torch.from_numpy(training_images)
+	train_X = torch.from_numpy(training_images).float()
 	train_y = torch.from_numpy(training_labels)
+
+	print(train_X.type)
 
 	my_training_dataset = utils.TensorDataset(train_X, train_y)
 	my_training_dataset = utils.DataLoader(my_training_dataset,batch_size = 128, shuffle=True)
