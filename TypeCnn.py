@@ -32,7 +32,11 @@ def resize_images(X):
 	for image in X:
 		resized_images.append(cv2.resize(image, (128, 128)))
 
-	return resized_images
+	return np.asarray(resized_images)
+
+def shape_inputs(X):
+	ShapedChessPositions = np.reshape(X, (X.shape[0], 3, 128, 128))
+	return ShapedChessPositions
 
 def dataset_split(X, y):
 	trainData, testData, trainLabels, testLabels = train_test_split(X, y, test_size=0.1, random_state=42)
@@ -59,26 +63,21 @@ def train(train_loader):
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.conv2_drop = nn.Dropout2d()
+        self.conv1 = nn.Conv2d(3, 5, kernel_size=5)
         self.fc1 = nn.Linear(320, 50)
-        self.fc2 = nn.Linear(50, 10)
-
+        
     def forward(self, x):
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
         x = x.view(-1, 320)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, training=self.training)
-        x = self.fc2(x)
-	
+        
 	return F.log_softmax(x)		
 
 def main():
 
 	X = load_images()
 	X = resize_images(X)
+	X = shape_inputs(X)
 	y = load_labels()
 
 	splitted = dataset_split(X, y)
@@ -88,15 +87,16 @@ def main():
 	testing_images = np.asarray(splitted[1])
 	testing_labels = np.asarray(splitted[3])
 
+
+	print(training_images.shape)
+
 	train_X = torch.from_numpy(training_images).float()
 	train_y = torch.from_numpy(training_labels)
-
-	print(train_X.type)
 
 	my_training_dataset = utils.TensorDataset(train_X, train_y)
 	my_training_dataset = utils.DataLoader(my_training_dataset,batch_size = 128, shuffle=True)
 
-	testing_X = torch.from_numpy(testing_images)
+	testing_X = torch.from_numpy(testing_images).float()
 	testing_y = torch.from_numpy(testing_labels)
 	
 	my_testing_set = utils.TensorDataset(testing_X, testing_y)
