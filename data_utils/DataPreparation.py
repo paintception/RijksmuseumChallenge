@@ -11,11 +11,10 @@ IMAGES_PATH = "/home/matthia/Documents/PhD/RijksmuseumChallenge/Dataset/images/"
 LABELS_PATH = "/home/matthia/Documents/PhD/RijksmuseumChallenge/Dataset/type_labels/"
 STORING_PATH = "/home/matthia/Documents/PhD/RijksmuseumChallenge/Dataset/GAN/"
 
-def load_images():
-	filelist = glob.glob(IMAGES_PATH+"*.jpg")
-	filelist = sorted(filelist)
+TOP_THRESH = 10
 
-	return(np.array([np.array(Image.open(fname)) for fname in filelist]))
+def load_images():
+	return np.load(IMAGES_PATH+"type_images.npy")	
 
 def load_labels():
 	return np.load(LABELS_PATH+"type_labels.npy")
@@ -31,27 +30,23 @@ def get_most_common(y, most_common):
 
 	return top_types
 
-def store_image(image, tmp_path, i):
-	cv2.imwrite(tmp_path+"sample_"+str(i)+".jpg", image)
-
 def main():
+
+	most_occurent_imgs = list()
+	most_occurent_labels = list()
+
 	images = load_images()
 	labels = load_labels()
-	top_types = get_most_common(labels, 2)
+	top_labels = get_most_common(labels, TOP_THRESH)
 
-	final_labels = list()
+	for(image, label) in zip(images, labels):
+		for top_label in top_labels:
+			if label == top_label:
+				most_occurent_imgs.append(image)
+				most_occurent_labels.append(label)
 
-	for i, (image, label) in enumerate(zip(images, labels)):
-		for top_type in top_types:
-			if label == top_type:
-				tmp_path = STORING_PATH + "label_"+str(label)+"/"
-				if not os.path.exists(tmp_path):
-					os.makedirs(tmp_path)
-
-				store_image(image, tmp_path, i)		 
-				final_labels.append(label)
-
-	np.save(STORING_PATH+"most_common_labels.npy", final_labels)
+	np.save(IMAGES_PATH+"top_images.npy", most_occurent_imgs)
+	np.save(LABELS_PATH+"top_labels.npy", most_occurent_labels)
 
 if __name__ == '__main__':
 	main()
