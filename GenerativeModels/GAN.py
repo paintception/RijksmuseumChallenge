@@ -12,7 +12,7 @@ class generator(nn.Module):
     # Architecture : FC1024_BR-FC7x7x128_BR-(64)4dc2s_BR-(1)4dc2s_S
     def __init__(self, dataset = 'custom'):
         super(generator, self).__init__()
-        if dataset == 'custom':
+        if dataset == 'Rijksmuseum':
             self.input_height = 28
             self.input_width = 28
             self.input_dim = 62
@@ -52,16 +52,14 @@ class discriminator(nn.Module):
     # Architecture : (64)4c2s-(128)4c2s_BL-FC1024_BL-FC1_S
     def __init__(self, dataset = 'custom'):
         super(discriminator, self).__init__()
-        if dataset == 'custom':
+        if dataset == 'Rijksmuseum':
             self.input_height = 28
             self.input_width = 28
             self.input_dim = 1
             self.output_dim = 1
-        elif dataset == 'celebA':
-            self.input_height = 64
-            self.input_width = 64
-            self.input_dim = 3
-            self.output_dim = 1
+
+	else:
+	    print "Dataset Not Supported"
 
         self.conv = nn.Sequential(
             nn.Conv2d(self.input_dim, 64, 4, 2, 1),
@@ -129,7 +127,7 @@ class GAN(object):
 		random_images = list()
  		for i in xrange(0, 10000):
 			np.asarray(random_images.append(random.random((28,28))))
-		random_labels_gen = lambda n: [random.randint(0,1) for b in range(0,n)]
+		random_labels_gen = lambda n: [random.randint(0,2) for b in range(0,n)]
 		random_labels = random_labels_gen(len(random_images))
 
 		tensor_images = torch.stack([torch.Tensor(i) for i in random_images])
@@ -141,13 +139,41 @@ class GAN(object):
 	
 		my_dataset = torch.utils.data.TensorDataset(tensor_images, tensor_labels)
 		self.data_loader = torch.utils.data.DataLoader(my_dataset, batch_size=self.batch_size, shuffle=True)
+	
+
+	elif self.dataset == "Rijksmuseum":
+		
+		from sklearn.preprocessing import LabelEncoder
+		from keras.utils import np_utils
+		from collections import Counter	
+	
+		images = np.load("/home/matthia/Desktop/28_top_types.npy").astype("float")
+		labels = np.load("/home/matthia/Desktop/28_top_labels.npy")
+		
+		y = [str(i) for i in labels]
+ 
+                self.classes = len(Counter(y).keys())
+ 
+                encoder = LabelEncoder()
+                encoder.fit(y)
+                encoded_y = encoder.transform(y)
+ 
+                final_y = np_utils.to_categorical(encoded_y, self.classes)
+
+		tensor_images = torch.stack([torch.Tensor(i) for i in images])
+		tensor_images.unsqueeze_(1)
+		tensor_labels = torch.FloatTensor(final_y)
+		
+		my_dataset = torch.utils.data.TensorDataset(tensor_images, tensor_labels)
+		self.data_loader = torch.utils.data.DataLoader(my_dataset, batch_size=self.batch_size, shuffle=True)
+		
 	else:
 		pass	
 
 	self.z_dim = 62
 	
         # fixed noise
-        if self.gpu_mode:
+	if self.gpu_mode:
             self.sample_z_ = Variable(torch.rand((self.batch_size, self.z_dim)).cuda(), volatile=True)
         else:
             self.sample_z_ = Variable(torch.rand((self.batch_size, self.z_dim)), volatile=True)
