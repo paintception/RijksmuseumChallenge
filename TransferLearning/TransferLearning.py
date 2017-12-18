@@ -1,9 +1,10 @@
 import os
 import sys
 import glob
+import keras
 
 import numpy as np 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.cross_validation import train_test_split
@@ -14,6 +15,7 @@ from keras.models import Model
 from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing.image import ImageDataGenerator
 from keras.optimizers import SGD
+from keras.callbacks import *
 
 from collections import Counter
 
@@ -23,16 +25,17 @@ class TransferLearning(object):
 		self.height = 299
 		self.channels = 3
 		self.batch_size = 32
-		self.epochs = 1
+		self.epochs = 100
 		self.fc = 1024
 		self.layers_to_freeze = 172 
 		self.activation = "relu"
 		self.optimizer = SGD(lr = 0.0001, momentum = 0.9)
 		self.loss = "categorical_crossentropy"
+		self.early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
 
 	def load_data(self):
-		X = np.load("/home/matthia/Documents/PhD/RijksmuseumChallenge/random_images.npy")
-		y = np.load("/home/matthia/Documents/PhD/RijksmuseumChallenge/random_labels.npy")
+		X = np.load("/data/s2847485/PhD/labels/ImageNet_top_10_artists.npy")
+		y = np.load("/data/s2847485/PhD/labels/ImageNet_top_10_labels.npy")
 
 		return(X, y)
 
@@ -91,11 +94,11 @@ class TransferLearning(object):
 
 		self.setup_transfer_learning_model(model, base_model)
 
-		model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), class_weight = "auto")
+		model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), callbacks = [self.early_stopping], class_weight = "auto")
 		model.fit(training_images, training_labels)
 
 		tl_score = model.evaluate(testing_images, testing_labels, verbose=1)
-		print('Test accuracy via Transfer-Learning:', score[1])
+		print('Test accuracy via Transfer-Learning:', tl_score[1])
 
 		self.setup_finetuning(model)
 		
@@ -103,7 +106,7 @@ class TransferLearning(object):
 		model.fit(training_images, training_labels)
 
 		ft_score = model.evaluate(testing_images, testing_labels, verbose=1)
-		print('Test accuracy after Fine-Tuning:', score[1])
+		print('Test accuracy after Fine-Tuning:', ft_score[1])
 
 	def main(self):
 		X = self.load_data()[0]
