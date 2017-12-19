@@ -94,16 +94,20 @@ class TransferLearning(object):
 
 		self.setup_transfer_learning_model(model, base_model)
 
-		model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), callbacks = [self.early_stopping], class_weight = "auto")
+		tl_history = model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), callbacks = [self.early_stopping], class_weight = "auto")
 		model.fit(training_images, training_labels)
+	
+		np.save("", tl_history.history["val_acc"])	
 
 		tl_score = model.evaluate(testing_images, testing_labels, verbose=1)
 		print('Test accuracy via Transfer-Learning:', tl_score[1])
 
 		self.setup_finetuning(model)
 		
-		model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), class_weight = "auto")
+		ft_history = model.fit(training_images, training_labels, batch_size=self.batch_size, nb_epoch=self.epochs, verbose=1, validation_data=(testing_images, testing_labels), class_weight = "auto")
 		model.fit(training_images, training_labels)
+
+		np.save("", ft_history.history["val_acc"])
 
 		ft_score = model.evaluate(testing_images, testing_labels, verbose=1)
 		print('Test accuracy after Fine-Tuning:', ft_score[1])
