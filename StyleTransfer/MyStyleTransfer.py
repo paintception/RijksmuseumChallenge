@@ -1,5 +1,6 @@
 from keras.preprocessing.image import load_img, img_to_array
 from scipy.optimize import fmin_l_bfgs_b
+from scipy.misc import imsave
 
 import time
 import cv2
@@ -22,6 +23,7 @@ class StyleTransferer(object):
 		self.loss_value = None
 		self.gradients_value = None
 		self.iterations = 2
+		self.result_prefix = "output"
 
 	def load_content_img(self):
 		content_image = cv2.imread(CONTENT_IMAGE)
@@ -48,8 +50,7 @@ class StyleTransferer(object):
 		img = np.expand_dims(img, axis = 0)
 		
 		img = vgg19.preprocess_input(img)
-		img = K.variable(img)
-
+		
 		return img
 
 	def make_generatedImg_placeholder(self):
@@ -95,10 +96,24 @@ class StyleTransferer(object):
 		
 		return K.sum(K.pow(a + b, 1.25))
 
+
+	def eval_loss_and_grads(self, x):
+		
+		x = x.reshape((1, self.img_nrows, self.img_ncols, 3))
+		outs = self.f_outputs([x])
+		loss_value = outs[0]
+		
+		if len(outs[1:]) == 1:
+			grad_values = outs[1].flatten().astype('float64')
+		else:
+			grad_values = np.array(outs[1:]).flatten().astype('float64')
+		
+		return loss_value, grad_values
+
 	def loss(self, x):
 		assert self.loss_value is None
 		
-		loss_value, grad_values = eval_loss_and_grads(x)
+		loss_value, grad_values = self.eval_loss_and_grads(x)
 		self.loss_value = loss_value
 		self.grad_values = grad_values
 		
@@ -113,13 +128,23 @@ class StyleTransferer(object):
 		
 		return grad_values
 
+	def deprocess_image(self, x):
+		x = x.reshape((self.img_nrows, self.img_ncols, 3))
+		x[:, :, 0] += 103.939
+		x[:, :, 1] += 116.779
+		x[:, :, 2] += 123.68
+		x = x[:, :, ::-1]
+		x = np.clip(x, 0, 255).astype('uint8')
+		
+		return x
+
 	def main(self):
 
 		content_image = self.load_content_img()
 		style_image = self.load_style_img()
 
-		p = self.create_tensor_representation(content_image)
-		a = self.create_tensor_representation(style_image)
+		p = K.variable(self.create_tensor_representation(content_image))
+		a = K.variable(self.create_tensor_representation(style_image))
 		x = self.make_generatedImg_placeholder()
 
 		final_tensor = self.make_3D_tensor(p, a, x)
@@ -152,22 +177,22 @@ class StyleTransferer(object):
 		else:
 			outputs.append(grads)
 
-		f_outputs = K.function([x], outputs)
+		self.f_outputs = K.function([x], outputs)
 
-		"""
+		x = self.create_tensor_representation(content_image)
+
 		for i in range(self.iterations):
 			print('Start of iteration', i)
 			start_time = time.time()
-			tmp, min_val, info = fmin_l_bfgs_b(style_transfer.loss, tmp.flatten(), fprime=style_transfer.grads, maxfun=20)
+			x, min_val, info = fmin_l_bfgs_b(style_transfer.loss, x.flatten(), fprime=style_transfer.grads, maxfun=20)
 			print('Current loss value:', min_val)
-			# save current generated image
-			img = self.deprocess_image(tmp.copy())
-			fname = result_prefix + '_at_iteration_%d.png' % i
+			
+			img = self.deprocess_image(x.copy())
+			fname = self.result_prefix + '_at_iteration_%d.png' % i
 			imsave(fname, img)
 			end_time = time.time()
 			print('Image saved as', fname)
 			print('Iteration %d completed in %ds' % (i, end_time - start_time))
-		"""
 
 if __name__ == '__main__':
 	style_transfer = StyleTransferer()
