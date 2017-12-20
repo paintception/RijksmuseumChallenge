@@ -60,6 +60,7 @@ def main():
 	plt.title("Accuracies")
 	plt.xlabel("Epochs")
 	plt.ylabel("Accuracy")
+	plt.label(label = "yp")
 	plt.show()
 	
 if __name__ == '__main__':
