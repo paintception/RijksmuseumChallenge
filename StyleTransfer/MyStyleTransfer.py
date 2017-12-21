@@ -10,7 +10,7 @@ from keras.applications import vgg19
 from keras import backend as K
 from matplotlib import pyplot as plt 
 
-CONTENT_IMAGE = "/home/matthia/Desktop/matthia.jpg"
+CONTENT_IMAGE = "/home/matthia/Desktop/mc.jpg"
 STYLE_IMAGE = "/home/matthia/Desktop/monet.jpg"
 
 class StyleTransferer(object):
@@ -40,9 +40,6 @@ class StyleTransferer(object):
 		style_image = cv2.imread(STYLE_IMAGE)
 
 		return style_image
-
-	def generate_x(self):
-		pass
 
 	def create_tensor_representation(self, img):
 		img = img_to_array(img)
@@ -85,8 +82,28 @@ class StyleTransferer(object):
 
 		return K.sum(K.square(S - C)) / (4. * (self.channels ** 2) * (size ** 2))
 
+	def get_style_loss(self, loss, symbolic_model):
+		feature_layers = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1', 'block5_conv1']
+
+		for layer_name in feature_layers:
+			layer_features = symbolic_model[layer_name]
+			style_reference_features = layer_features[1, :, :, :]
+			combination_features = layer_features[2, :, :, :]
+			sl = self.style_loss(style_reference_features, combination_features)
+			loss += (self.style_weight / len(feature_layers)) * sl
+		
+		return loss
+
 	def content_loss(self, base, combination):
 		return K.sum(K.square(combination - base))
+
+	def get_content_loss(self, loss, symbolic_model):
+		layer_features = symbolic_model['block5_conv2']
+		base_image_features = layer_features[0, :, :, :]
+		combination_features = layer_features[2, :, :, :]
+		loss += self.content_weight * self.content_loss(base_image_features, combination_features)
+
+		return loss
 
 	def total_variation_loss(self, x):
 		assert K.ndim(x) == 4
@@ -95,7 +112,6 @@ class StyleTransferer(object):
 		b = K.square(x[:, :self.img_nrows - 1, :self.img_ncols - 1, :] - x[:, :self.img_nrows - 1, 1:, :])
 		
 		return K.sum(K.pow(a + b, 1.25))
-
 
 	def eval_loss_and_grads(self, x):
 		
@@ -153,20 +169,9 @@ class StyleTransferer(object):
 		symbolic_model = dict([(layer.name, layer.output) for layer in model.layers])
 
 		loss = K.variable(0.)
-		layer_features = symbolic_model['block5_conv2']
-		base_image_features = layer_features[0, :, :, :]
-		combination_features = layer_features[2, :, :, :]
-		loss += self.content_weight * self.content_loss(base_image_features, combination_features)
+		loss = self.get_content_loss(loss, symbolic_model)
+		loss = self.get_style_loss(loss, symbolic_model)
 
-		feature_layers = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1', 'block5_conv1']
-		
-		for layer_name in feature_layers:
-			layer_features = symbolic_model[layer_name]
-			style_reference_features = layer_features[1, :, :, :]
-			combination_features = layer_features[2, :, :, :]
-			sl = self.style_loss(style_reference_features, combination_features)
-			loss += (self.style_weight / len(feature_layers)) * sl
-		
 		loss += self.total_variation_weight * self.total_variation_loss(x)
 
 		grads = K.gradients(loss, x)
