@@ -22,7 +22,7 @@ class StyleTransferer(object):
 		self.channels = 3
 		self.loss_value = None
 		self.gradients_value = None
-		self.iterations = 2
+		self.iterations = 15
 		self.result_prefix = "output"
 
 	def load_content_img(self):
@@ -31,7 +31,7 @@ class StyleTransferer(object):
 		self.width = np.size(content_image, 1)
 		self.height = np.size(content_image, 0)
 
-		self.img_nrows = 400
+		self.img_nrows = 200
 		self.img_ncols = int(self.width * self.img_nrows / self.height)
 
 		return content_image 
@@ -95,10 +95,10 @@ class StyleTransferer(object):
 		return loss
 
 	def content_loss(self, base, combination):
-		return K.sum(K.square(combination - base))
+		return K.sum(K.square(combination - base))*0.5
 
 	def get_content_loss(self, loss, symbolic_model):
-		layer_features = symbolic_model['block5_conv2']
+		layer_features = symbolic_model['block1_conv2']
 		base_image_features = layer_features[0, :, :, :]
 		combination_features = layer_features[2, :, :, :]
 		loss += self.content_weight * self.content_loss(base_image_features, combination_features)
@@ -202,4 +202,3 @@ class StyleTransferer(object):
 if __name__ == '__main__':
 	style_transfer = StyleTransferer()
 	style_transfer.main()
-		
