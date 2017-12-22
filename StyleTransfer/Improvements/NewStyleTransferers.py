@@ -103,9 +103,9 @@ class StyleTransferer(object):
 			combination_features = layer_features[2, :, :, :]
 			prepare_sl = self.prepare_style_loss(style_reference_features, combination_features)
 			
-			#sl = self.original_style_loss(prepare_style_losse_sl[0], prepare_sl[1], prepare_sl[2])	#Original Style Loss
-			#sl = self.squared_eigenvalues_logs_style_loss(prepare_style_losse_sl[0], prepare_sl[1], prepare_sl[2])	#Eigenvalue log Style Loss
-			sl = self.abs_style_loss(prepare_sl[0], prepare_sl[1], prepare_sl[2])	#Abs Style Loss
+			sl = self.original_style_loss(prepare_sl[0], prepare_sl[1], prepare_sl[2])	#Original Style Loss
+			#sl = self.squared_eigenvalues_logs_style_loss(prepare_style_losse_sl[0], prepare_sl[1], prepare_sl[2])	TODO #Eigenvalue log Style Loss
+			#sl = self.abs_style_loss(prepare_sl[0], prepare_sl[1], prepare_sl[2])	#Abs Style Loss
 
 			loss += (self.style_weight / len(feature_layers)) * sl
 		
@@ -114,8 +114,20 @@ class StyleTransferer(object):
 	def original_content_loss(self, base, combination):
 		return K.sum(K.square(combination - base))*0.5
 
-	def inverse_variance_content_loss(self, base, combination):
+	def inverse_variance_base_content_loss(self, base, combination):
 		pass
+
+	def inverse_variance_combination_content_loss(self, base, combination):
+		num = K.sum(combination/K.var(combination))
+		den = K.sum(1/K.var(combination))
+
+		inverse_variance = num/den
+
+		print(inverse_variance)
+
+		loss = K.sqrt(inverse_variance * K.sum(combination - base))
+
+		return loss
 
 	def cosine_similarity_content_loss(self, base, combination):
 		num = K.sum(combination - base)
@@ -128,7 +140,8 @@ class StyleTransferer(object):
 		base_image_features = layer_features[0, :, :, :]
 		combination_features = layer_features[2, :, :, :]
 		#loss += self.content_weight * self.original_content_loss(base_image_features, combination_features)	#Original Content Loss
-		loss += self.content_weight * self.cosine_similarity_content_loss(base_image_features, combination_features)
+		loss += self.content_weight * self.cosine_similarity_content_loss(base_image_features, combination_features)	#Cosine similarity Content
+		#loss += self.inverse_variance_combination_content_loss(base_image_features, combination_features)
 
 		return loss
 
