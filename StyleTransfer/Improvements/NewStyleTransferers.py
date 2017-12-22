@@ -13,6 +13,8 @@ from matplotlib import pyplot as plt
 CONTENT_IMAGE = "/home/matthia/Desktop/matthia.jpg"
 STYLE_IMAGE = "/home/matthia/Desktop/munch.jpg"
 
+LOSS_TYPE = ""
+
 class StyleTransferer(object):
 	def __init__(self):
 		self.total_variation_weight = 1.0
@@ -23,7 +25,8 @@ class StyleTransferer(object):
 		self.loss_value = None
 		self.gradients_value = None
 		self.iterations = 15
-		self.result_prefix = "output"
+		self.result_prefix = "output_image"
+		self.loss_tracker = list()
 
 	def load_content_img(self):
 		content_image = cv2.imread(CONTENT_IMAGE)
@@ -89,7 +92,7 @@ class StyleTransferer(object):
 		pass
 
 	def abs_style_loss(self, S, C, size):
-		pass
+		return K.sum(K.abs(S - C)) / (4. * (self.channels ** 2) * (size ** 2)) 
 
 	def get_style_loss(self, loss, symbolic_model):
 		feature_layers = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1', 'block5_conv1']
@@ -100,7 +103,9 @@ class StyleTransferer(object):
 			combination_features = layer_features[2, :, :, :]
 			prepare_sl = self.prepare_style_loss(style_reference_features, combination_features)
 			
-			sl = self.original_style_loss(prepare_sl[0], prepare_sl[1], prepare_sl[2])
+			#sl = self.original_style_loss(prepare_style_losse_sl[0], prepare_sl[1], prepare_sl[2])	#Original Style Loss
+			#sl = self.squared_eigenvalues_logs_style_loss(prepare_style_losse_sl[0], prepare_sl[1], prepare_sl[2])	#Eigenvalue log Style Loss
+			sl = self.abs_style_loss(prepare_sl[0], prepare_sl[1], prepare_sl[2])	#Abs Style Loss
 
 			loss += (self.style_weight / len(feature_layers)) * sl
 		
@@ -113,13 +118,17 @@ class StyleTransferer(object):
 		pass
 
 	def cosine_similarity_content_loss(self, base, combination):
-		pass
+		num = K.sum(combination - base)
+		den = K.sqrt(K.square(K.sum(combination))* K.square(K.sum(base)))
+
+		return num/den		
 
 	def get_content_loss(self, loss, symbolic_model):
 		layer_features = symbolic_model['block5_conv2']
 		base_image_features = layer_features[0, :, :, :]
 		combination_features = layer_features[2, :, :, :]
-		loss += self.content_weight * self.original_content_loss(base_image_features, combination_features)
+		#loss += self.content_weight * self.original_content_loss(base_image_features, combination_features)	#Original Content Loss
+		loss += self.content_weight * self.cosine_similarity_content_loss(base_image_features, combination_features)
 
 		return loss
 
@@ -209,6 +218,7 @@ class StyleTransferer(object):
 			start_time = time.time()
 			x, min_val, info = fmin_l_bfgs_b(style_transfer.loss, x.flatten(), fprime=style_transfer.grads, maxfun=20)
 			print('Current loss value:', min_val)
+			self.loss_tracker.append(min_val)
 			
 			img = self.deprocess_image(x.copy())
 			fname = self.result_prefix + '_at_iteration_%d.png' % i
@@ -216,6 +226,8 @@ class StyleTransferer(object):
 			end_time = time.time()
 			print('Image saved as', fname)
 			print('Iteration %d completed in %ds' % (i, end_time - start_time))
+
+		np.save(LOSS_TYPE+"_loss.npy", self.loss_tracker)
 
 if __name__ == '__main__':
 	style_transfer = StyleTransferer()
