@@ -3,6 +3,7 @@ from keras.preprocessing.image import load_img, img_to_array
 from scipy.misc import imsave
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
+
 import time
 import argparse
 import itertools
