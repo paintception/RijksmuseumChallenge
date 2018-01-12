@@ -1,8 +1,12 @@
 import numpy as np 
 
+import tensorflow as tf 
+
 import time
 import random
 import copy
+
+#TODO not add new state if already visited but update its value
 
 class ValueLearning(object):
 	def __init__(self):
@@ -61,19 +65,50 @@ class ValueLearning(object):
 				V_0 = self.v.get(S_0)
 				V_0 = V_0 + self.alpha*(reward + self.gamma*(0 - V_0))
 				self.update_v(S_0, V_0)
-				
+	
+	def make_total_set_tf(self):
+
+		a = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+		b = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+		c = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+		d = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+
+		total_set = tf.stack([a,b,c, d], axis=2)
+		dims = total_set.get_shape()
+		d = dims[-1]
+
+		return(total_set, d)
+
+	def make_state_tf(self):
+		return self.total_set[:,:, random.randint(0, self.d-1)]
+
+	def next_state_tf(self, initial_state):
+		while True:
+			next_state = self.make_state_tf()
+			if initial_state != next_state:
+				return next_state
+			break
+
 	def main(self):
-		total_set = self.make_set_features()
-		s = self.create_initial_state(total_set)
+		#total_set = self.make_set_features()
+		#s = self.create_initial_state(total_set)
+
+		tmp = self.make_total_set_tf()
+
+		self.total_set = tmp[0]
+		self.d = tmp[1]
+
+		s_0 = self.make_state_tf()
 
 		while True:
-			state_0 = copy.deepcopy(s)
-
-			next_state = self.goto_next_state(s)
+			state_0 = tf.Variable(s_0)
+			next_state = self.next_state_tf(state_0)
+	
 			self.compute_td_value(state_0, next_state)
-		
-			s = self.create_initial_state(total_set)
-			
+			s_0 = self.make_state_tf()
+
+			print(self.v)
+			time.sleep(2)
 
 if __name__ == '__main__':
 	VL = ValueLearning()
