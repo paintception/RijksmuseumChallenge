@@ -1,15 +1,23 @@
+
 from __future__ import print_function
+from __main__ import *
+
+from keras.applications import vgg19
 from keras.preprocessing.image import load_img, img_to_array
-from scipy.misc import imsave
+#from scipy.misc import imsave
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
 import time
 import argparse
+import random
 
-from keras.applications import vgg19
 from keras import backend as K
 
-width, height = load_img("guillemins.jpg").size
+import Learner
+
+import tensorflow as tf
+
+width, height = load_img("mat.jpg").size
 img_nrows = 400
 img_ncols = int(width * img_nrows / height)
 content_weight = 0.025
@@ -36,29 +44,17 @@ class Evaluator(object):
         self.grad_values = None
         return grad_values
 
+
 def load_image(image_path):
     img = load_img(image_path, target_size=(img_nrows, img_ncols))
     img = img_to_array(img)
     img = np.expand_dims(img, axis=0)
     img = vgg19.preprocess_input(img)
-    
+
     return img
-
-def get_base_image():
-    return K.variable(load_image("guillemins.jpg"))
-
-def get_style_image():
-    return K.variable(load_image("klimt.jpg"))
 
 def initialize_loss():
     return K.variable(0.)
-
-def load_model():
-    model = vgg19.VGG19(input_tensor=input_tensor, weights='imagenet', include_top=False)
-    return model
-
-def combine_into_tensor(base_image, style_reference_image, combination_image):
-    return K.concatenate([base_image, style_reference_image, combination_image], axis=0)
 
 def gram_matrix(x):
     assert K.ndim(x) == 3
@@ -162,35 +158,30 @@ def run_experiment(x):
 
     loss = list()
 
-    for i in range(100):
+    for i in range(10):
         print('Start of iteration', i)
         start_time = time.time()
         x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
-        #print('Current loss value:', min_val)
+        print('Current loss value:', min_val)
         loss.append(min_val)
         img = deprocess_image(x.copy())
         fname = result_prefix + '_at_iteration_%d.png' % i
-        imsave("/data/s2847485/PhD/style_transfer_results/eigenvalue_style_loss/"+fname, img)
+        #imsave("/data/s2847485/PhD/style_transfer_results/eigenvalue_style_loss/"+fname, img)
         end_time = time.time()
-        print('Image saved as', fname)
+        #print('Image saved as', fname)
         #print('Iteration %d completed in %ds' % (i, end_time - start_time))
 
-    np.save("/data/s2847485/PhD/style_transfer_results/eigenvalue_style_loss/eigenvalue_style_loss.npy", loss)
-
-base_image = get_base_image()
-style_reference_image = get_style_image()
-
-combination_image = K.placeholder((1, img_nrows, img_ncols, 3))
-
-input_tensor = combine_into_tensor(base_image, style_reference_image, combination_image)
-model = load_model()
-outputs_dict = dict([(layer.name, layer.output) for layer in model.layers])
+    return loss
+    #np.save("/data/s2847485/PhD/style_transfer_results/eigenvalue_style_loss/eigenvalue_style_loss.npy", loss)
 
 loss = initialize_loss()
 
-layer_features = outputs_dict['block5_conv2']
+layer_features = Learner.outputs_dict['block5_conv2']
+
 base_image_features = layer_features[0, :, :, :]
 combination_features = layer_features[2, :, :, :]
+
+#Filter again the features to use, here only on 1 conv layer makes it easy for the dimension issues
 
 # Decide which kind of content loss 
 
@@ -200,20 +191,65 @@ loss += content_weight * radial_basis_content_loss(base_image_features, combinat
 #loss += content_weight * cosine_similarity_content_loss(base_image_features, combination_features)
 #loss += content_weight * inverse_variance_combination_content_loss(base_image_features, combination_features)
 
-feature_layers = ['block1_conv1', 'block2_conv1',
-                  'block3_conv1', 'block4_conv1',
-                  'block5_conv1']
+original_initial_style_block = list()
+original_final_style_block = list()
 
-for layer_name in feature_layers:
-    layer_features = outputs_dict[layer_name]
-    style_reference_features = layer_features[1, :, :, :]
-    combination_features = layer_features[2, :, :, :]
+random_initial_style_block = list()
+random_final_style_block = list()
+
+for layer_name in Learner.feature_layers:
+
+    print("In Layer: ", layer_name)
+
+    layer_features = Learner.outputs_dict[layer_name]
+    
+    total_style_reference_features = layer_features[1, :, :, :]
+    total_combination_features = layer_features[2, :, :, :]
+
+    dims = total_style_reference_features.get_shape()
+    d = dims[-1]
+
+    for i in range(0, 4):
+
+        random_ft = random.randint(0, d-1)
+
+        feat_block = total_style_reference_features[:,:, random_ft]
+        comb_block = total_style_reference_features[:,:, random_ft]
+
+        dims_1 = feat_block.get_shape()
+
+        if dims_1[0] == 200:
+            original_initial_style_block.append(feat_block)
+            random_initial_style_block.append(comb_block)
+
+    style_reference_features = tf.stack(original_initial_style_block, axis = 2)
+    combination_features =  tf.stack(random_initial_style_block, axis = 2)
+
+    print(style_reference_features)
+    print(combination_features)
+
+    """
+    block_2_features = tf.stack(set_block2, axis = 2)
+    
+    #block_5_features = tf.stack(set_block5, axis = 2)
+
+    #a = tf.stack(total_set, axis=2)
+
+    Here we call TD-0 for feature learning
+
+    print(style_reference_features)
+    print(combination_features)
+    time.sleep(1)
+
+    block_2_features = tf.stack(set_block2_feat, axis = 2)
+    combination_features = tf.stack(set_block2_comb, axis = 2)
+    
+
     sl = prepare_style_loss(style_reference_features, combination_features)
-            
-    loss += (style_weight / len(feature_layers)) * sl
+    loss += (style_weight / len(Learner.feature_layers)) * sl
 
-loss += total_variation_weight * total_variation_loss(combination_image)
-grads = K.gradients(loss, combination_image)
+loss += total_variation_weight * total_variation_loss(Learner.combination_image)
+grads = K.gradients(loss, Learner.combination_image)
 
 outputs = [loss]
 
@@ -222,10 +258,11 @@ if isinstance(grads, (list, tuple)):
 else:
     outputs.append(grads)
 
-f_outputs = K.function([combination_image], outputs)
+f_outputs = K.function([Learner.combination_image], outputs)
 
 evaluator = Evaluator()
 
-x = load_image("guillemins.jpg")
+x = load_image("mat.jpg")
 
-run_experiment(x)
+loss = run_experiment(x)
+"""
