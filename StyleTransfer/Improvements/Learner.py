@@ -43,8 +43,10 @@ def main():
 	global input_tensor
 	global outputs_dict
 
-	feature_layers = ['block2_conv1', 'block5_conv1']
-	
+
+	feature_layers = ['block4_conv1',
+	                  'block5_conv1']	# Keep them!
+
 	width, height = load_img("mat.jpg").size
 	img_nrows = 400
 
