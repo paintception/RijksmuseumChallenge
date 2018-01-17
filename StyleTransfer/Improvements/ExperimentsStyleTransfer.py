@@ -35,6 +35,7 @@ class Evaluator(object):
         loss_value, grad_values = eval_loss_and_grads(x)
         self.loss_value = loss_value
         self.grad_values = grad_values
+        
         return self.loss_value
 
     def grads(self, x):
@@ -42,8 +43,8 @@ class Evaluator(object):
         grad_values = np.copy(self.grad_values)
         self.loss_value = None
         self.grad_values = None
+        
         return grad_values
-
 
 def load_image(image_path):
     img = load_img(image_path, target_size=(img_nrows, img_ncols))
@@ -64,6 +65,7 @@ def get_random_content_features(layer_features):
     total_content_reference_features = layer_features[0, :, :, :]
     total_combination_content_features = layer_features[2, :, :, :]
 
+    """
     dims = total_content_reference_features.get_shape()
     d = dims[-1]
 
@@ -79,15 +81,28 @@ def get_random_content_features(layer_features):
 
     content_reference_features = tf.stack(original_content_feat, axis = 2)
     random_content_features =  tf.stack(random_content_feat, axis = 2)
+    """
+    #return(content_reference_features, random_content_features)
 
-    return(content_reference_features, random_content_features)
+    return(total_content_reference_features, total_combination_content_features)
+
+def prepare_style_features(original_initial_style_block, random_initial_style_block):
+    style_reference_features = tf.stack(original_initial_style_block, axis = 2)
+    combination_features =  tf.stack(random_initial_style_block, axis = 2)     
+
+    sl = prepare_style_loss(style_reference_features, combination_features)
+
+    return sl
 
 def get_style_loss(loss):
     
     for layer_name in Learner.feature_layers:
 
-        original_initial_style_block = list()
-        random_initial_style_block = list()
+        original_initial_style_block_1 = list()
+        random_initial_style_block_1 = list()
+
+        original_initial_style_block_2 = list()
+        random_initial_style_block_2 = list()
 
         layer_features = Learner.outputs_dict[layer_name]
         
@@ -97,6 +112,9 @@ def get_style_loss(loss):
         dims = total_style_reference_features.get_shape()
         d = dims[-1]
 
+        sl = prepare_style_loss(total_style_reference_features, total_style_combination_features)
+        loss += (style_weight / len(Learner.feature_layers)) * sl
+        
         for i in range(0, 4):
 
             random_ft = random.randint(0, d-1)
@@ -107,13 +125,17 @@ def get_style_loss(loss):
             dims_1 = feat_block.get_shape()
 
             if dims_1[1] == 25:
-                original_initial_style_block.append(feat_block)
-                random_initial_style_block.append(comb_block)
-       
-                style_reference_features = tf.stack(original_initial_style_block, axis = 2)
-                combination_features =  tf.stack(random_initial_style_block, axis = 2)     
-
-                sl = prepare_style_loss(style_reference_features, combination_features)
+                original_initial_style_block_1.append(feat_block)
+                random_initial_style_block_1.append(comb_block)
+                
+                sl = prepare_style_features(original_initial_style_block_1, random_initial_style_block_1)
+                loss += (style_weight / len(Learner.feature_layers)) * sl
+        
+            elif dims_1[1] == 50:
+                original_initial_style_block_2.append(feat_block)
+                random_initial_style_block_2.append(comb_block)
+                
+                sl = prepare_style_features(original_initial_style_block_2, random_initial_style_block_2)
                 loss += (style_weight / len(Learner.feature_layers)) * sl
 
     return loss
@@ -233,7 +255,6 @@ def run_experiment(x):
         fname = result_prefix + '_at_iteration_%d.png' % i
         imsave("/home/matthia/Desktop/"+fname, img)
         end_time = time.time()
-        #print('Image saved as', fname)
         #print('Iteration %d completed in %ds' % (i, end_time - start_time))
 
     #return loss
@@ -241,7 +262,7 @@ def run_experiment(x):
 
 loss = initialize_loss()
 
-layer_features = Learner.outputs_dict['block5_conv2']
+layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
 
 random_content_features = get_random_content_features(layer_features)
 
