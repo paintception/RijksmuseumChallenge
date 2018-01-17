@@ -88,10 +88,6 @@ def get_random_content_features(layer_features):
 
 def prepare_style_features(original_initial_style_block, random_initial_style_block):
     style_reference_features = tf.stack(original_initial_style_block, axis = 2)
-
-    print(style_reference_features)
-    time.sleep(2)
-
     combination_features =  tf.stack(random_initial_style_block, axis = 2)     
 
     sl = prepare_style_loss(style_reference_features, combination_features)
@@ -99,6 +95,8 @@ def prepare_style_features(original_initial_style_block, random_initial_style_bl
     return sl
 
 def get_style_loss_and_state(loss):
+
+    #FIXME we only return one state of features instead of 2 
     
     for layer_name in Learner.feature_layers:
 
@@ -116,7 +114,12 @@ def get_style_loss_and_state(loss):
         dims = total_style_reference_features.get_shape()
         d = dims[-1]
 
+        sl = prepare_style_loss(total_style_reference_features, total_style_combination_features)   #If we want to minimize on all features
+        loss += (style_weight / len(Learner.feature_layers)) * sl
+
+        """
         for i in range(0, 4):   # Creation of what we consider as S_0
+                                # In order to find which states/features to minimize with Rl
 
             random_ft = random.randint(0, d-1)
 
@@ -129,21 +132,27 @@ def get_style_loss_and_state(loss):
                 original_initial_style_block_1.append(feat_block)
                 random_initial_style_block_1.append(comb_block)
 
+                if len(original_initial_style_block_1) == 4:
+                    sl = prepare_style_features(original_initial_style_block_1, random_initial_style_block_1)
+                    loss += (style_weight / len(Learner.feature_layers)) * sl
+                else:
+                    pass
+
             elif receptive_field[1] == 50:
                 original_initial_style_block_2.append(feat_block)
                 random_initial_style_block_2.append(comb_block)
 
-        if len(original_initial_style_block_2) == 4:
+                if len(original_initial_style_block_2) == 4:
+                    sl = prepare_style_features(original_initial_style_block_2, random_initial_style_block_2)
+                    loss += (style_weight / len(Learner.feature_layers)) * sl
+                else:
+                    pass
+
+        random_initial_style_block_2 = (tf.stack(random_initial_style_block_2, axis=2))
+        """
         
-            sl = prepare_style_features(original_initial_style_block_2, random_initial_style_block_2)
-            loss += (style_weight / len(Learner.feature_layers)) * sl
+    return(loss)    # Rememember to return the global loss!
 
-        if len(original_initial_style_block_1) == 4:
-
-            sl = prepare_style_features(original_initial_style_block_1, random_initial_style_block_1)
-            loss += (style_weight / len(Learner.feature_layers)) * sl
-
-    return loss
 
 def gram_matrix(x):
     assert K.ndim(x) == 3
