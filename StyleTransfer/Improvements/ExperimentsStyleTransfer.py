@@ -88,13 +88,17 @@ def get_random_content_features(layer_features):
 
 def prepare_style_features(original_initial_style_block, random_initial_style_block):
     style_reference_features = tf.stack(original_initial_style_block, axis = 2)
+
+    print(style_reference_features)
+    time.sleep(2)
+
     combination_features =  tf.stack(random_initial_style_block, axis = 2)     
 
     sl = prepare_style_loss(style_reference_features, combination_features)
 
     return sl
 
-def get_style_loss(loss):
+def get_style_loss_and_state(loss):
     
     for layer_name in Learner.feature_layers:
 
@@ -112,36 +116,34 @@ def get_style_loss(loss):
         dims = total_style_reference_features.get_shape()
         d = dims[-1]
 
-        sl = prepare_style_loss(total_style_reference_features, total_style_combination_features)
-        loss += (style_weight / len(Learner.feature_layers)) * sl
-        
-        for i in range(0, 4):
+        for i in range(0, 4):   # Creation of what we consider as S_0
 
             random_ft = random.randint(0, d-1)
 
-            feat_block = total_style_reference_features[:,:, random_ft]
-            comb_block = total_style_combination_features[:,:, random_ft]
-            
-            dims_1 = feat_block.get_shape()
+            feat_block = total_style_reference_features[:,:, random_ft]     # These features correspond to S_0
+            comb_block = total_style_combination_features[:,:, random_ft]   # These features correspond to S_0
+        
+            receptive_field = feat_block.get_shape()
 
-            if dims_1[1] == 25:
+            if receptive_field[1] == 25:
                 original_initial_style_block_1.append(feat_block)
                 random_initial_style_block_1.append(comb_block)
-                
-                sl = prepare_style_features(original_initial_style_block_1, random_initial_style_block_1)
-                loss += (style_weight / len(Learner.feature_layers)) * sl
-        
-            elif dims_1[1] == 50:
+
+            elif receptive_field[1] == 50:
                 original_initial_style_block_2.append(feat_block)
                 random_initial_style_block_2.append(comb_block)
-                
-                sl = prepare_style_features(original_initial_style_block_2, random_initial_style_block_2)
-                loss += (style_weight / len(Learner.feature_layers)) * sl
+
+        if len(original_initial_style_block_2) == 4:
+        
+            sl = prepare_style_features(original_initial_style_block_2, random_initial_style_block_2)
+            loss += (style_weight / len(Learner.feature_layers)) * sl
+
+        if len(original_initial_style_block_1) == 4:
+
+            sl = prepare_style_features(original_initial_style_block_1, random_initial_style_block_1)
+            loss += (style_weight / len(Learner.feature_layers)) * sl
 
     return loss
-
-def get_random_style_features():
-    pass
 
 def gram_matrix(x):
     assert K.ndim(x) == 3
@@ -243,22 +245,22 @@ def deprocess_image(x):
 
 def run_experiment(x):
 
-    loss = list()
+    loss_tracker = list()
 
     for i in range(10):
         print('Start of iteration', i)
         start_time = time.time()
         x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
         print('Current loss value:', min_val)
-        loss.append(min_val)
+        loss_tracker.append(min_val)
         img = deprocess_image(x.copy())
         fname = result_prefix + '_at_iteration_%d.png' % i
         imsave("/home/matthia/Desktop/"+fname, img)
         end_time = time.time()
         #print('Iteration %d completed in %ds' % (i, end_time - start_time))
 
-    #return loss
     #np.save("/data/s2847485/PhD/style_transfer_results/eigenvalue_style_loss/eigenvalue_style_loss.npy", loss)
+    return loss_tracker
 
 loss = initialize_loss()
 
@@ -277,7 +279,7 @@ loss += content_weight * radial_basis_content_loss(sampled_base_image_features, 
 #loss += content_weight * cosine_similarity_content_loss(base_image_features, combination_features)
 #loss += content_weight * inverse_variance_combination_content_loss(base_image_features, combination_features)
 
-loss += get_style_loss(loss)
+loss = get_style_loss_and_state(loss)
 
 loss += total_variation_weight * total_variation_loss(Learner.combination_image)
 grads = K.gradients(loss, Learner.combination_image)
