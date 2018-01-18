@@ -7,9 +7,11 @@ from keras.preprocessing.image import load_img, img_to_array
 from scipy.misc import imsave
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
+
 import time
 import argparse
 import random
+import operator
 
 from keras import backend as K
 
@@ -81,6 +83,12 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
         combination_population.append(individual_combination)
 
     return(reference_population, combination_population)
+
+def filter_and_make_new_generation(dictionary):
+
+    sorted_population = dict(sorted(dictionary.items(), key=operator.itemgetter(1), reverse = True))
+
+    print(max(sorted_population.values()))
 
 def load_image(image_path):
     img = load_img(image_path, target_size=(img_nrows, img_ncols))
@@ -225,9 +233,9 @@ x = load_image("mat.jpg")
 
 for layer_name in Learner.feature_layers:
 
-    print("Analysing Layer: ", layer_name)
+    dictionary = {}
 
-    loss_tracker = list()
+    print("Analysing Layer: ", layer_name)
 
     layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
 
@@ -245,10 +253,15 @@ for layer_name in Learner.feature_layers:
             print("Creating generation: ", i)
 
             original_pool = make_original_pool(total_style_reference_features, total_style_combination_features)    
+          
+            total_style_reference_features = original_pool[0]
+            total_style_combination_features = original_pool[1]
+
             losses = list()
 
-            for individual in original_pool:
+            for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
 
+                """
                 loss = initialize_loss()
 
                 print("Initialized Loss for Individual")
@@ -262,7 +275,7 @@ for layer_name in Learner.feature_layers:
 
                 print("Content Loss computed")
 
-                sl = prepare_style_loss(total_style_reference_features, total_style_combination_features)
+                sl = prepare_style_loss(style_reference_features, style_combination_features)
                 loss += (style_weight / len(Learner.feature_layers)) * sl                    
 
                 print("Style Loss computed")
@@ -281,9 +294,13 @@ for layer_name in Learner.feature_layers:
 
                 evaluator = Evaluator()
 
-                final_loss = run_experiment(x)
-                losses.append(final_loss)
+                #final_loss = run_experiment(x)
+                #losses.append(final_loss)
+                """
 
-            original_pool = filter_and_make_new_generation(original_pool, losses)            
+                loss = random.randint(0,20)
+                dictionary[style_reference_features]  = loss
+
+            original_pool = filter_and_make_new_generation(dictionary)            
 
 np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
