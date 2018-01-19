@@ -65,13 +65,13 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
     dims = total_style_reference_features.get_shape()
     d = dims[-1]
 
-    for individual in xrange(1, 10):    #Let's assume we want a population of 10 individuals
+    for individual in xrange(1, 11):    #Let's assume we want a population of 10 individuals
         print("Creating Individual: ", individual)
 
         single_individual_tensor_reference = list()
         single_individual_tensor_combination = list()
 
-        for feature in xrange(1, 10):     #Let's assume 10 optimal features have to be found
+        for feature in xrange(1, 11):     #Let's assume 10 optimal features have to be found
 
             random_ft = random.randint(0, d-1)
 
@@ -91,16 +91,28 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
 def filter_and_make_new_generation(dictionary):
 
+    parents_for_breeding = list()
     new_generation_pool = list()
-    new_reference_features = list()
 
     sorted_population = OrderedDict(sorted(dictionary.items(), key=itemgetter(1)))
     to_remove = np.mean(sorted_population.values())     #50% is kept
 
     filtered_population = {k: v for k, v in sorted_population.iteritems() if v <= to_remove}
+    parents_for_breeding = [tensor for tensor in filtered_population.keys()]
 
-    for tensor in filtered_population.keys():
-        new_reference_features.append(tensor)
+    def compute_children(parents_for_breeding):
+        children = list()
+        
+        for parent_1, parent_2 in zip(parents_for_breeding[0::2], parents_for_breeding[1::2]):
+            features_parent_1 = parent_1[:,:,0:5]
+            features_parent_2 = parent_2[:,:,-5:]
+            
+            children.append(tf.concat([features_parent_1, features_parent_2], 2))
+            
+        return children
+
+    children = compute_children(parents_for_breeding)
+    new_reference_features = parents_for_breeding+children
 
     new_generation_pool.append(new_reference_features)
     new_combination_features = copy.copy(new_reference_features)
@@ -258,7 +270,7 @@ for layer_name in Learner.feature_layers:
     layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
 
     total_style_reference_features = layer_features[1, :, :, :]     #Set corresponding to the total pool of features
-                                                                    # our aim is to find the optimal subset in here
+                                                                     # our aim is to find the optimal subset in here
     total_style_combination_features = layer_features[2, :, :, :]
 
     dims = total_style_reference_features.get_shape()
