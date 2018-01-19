@@ -4,20 +4,25 @@ from __main__ import *
 
 from keras.applications import vgg19
 from keras.preprocessing.image import load_img, img_to_array
+
 from scipy.misc import imsave
-import numpy as np
+
+from collections import OrderedDict
+from operator import itemgetter
+
 from scipy.optimize import fmin_l_bfgs_b
 
 import time
 import argparse
 import random
-import operator
+import copy
 
 from keras import backend as K
 
 import Learner
 
 import tensorflow as tf
+import numpy as np 
 
 width, height = load_img("mat.jpg").size
 img_nrows = 400
@@ -86,9 +91,22 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
 def filter_and_make_new_generation(dictionary):
 
-    sorted_population = dict(sorted(dictionary.items(), key=operator.itemgetter(1), reverse = True))
+    new_generation_pool = list()
+    new_reference_features = list()
 
-    print(max(sorted_population.values()))
+    sorted_population = OrderedDict(sorted(dictionary.items(), key=itemgetter(1)))
+    to_remove = np.mean(sorted_population.values())     #50% is kept
+
+    filtered_population = {k: v for k, v in sorted_population.iteritems() if v <= to_remove}
+
+    for tensor in filtered_population.keys():
+        new_reference_features.append(tensor)
+
+    new_generation_pool.append(new_reference_features)
+    new_combination_features = copy.copy(new_reference_features)
+    new_generation_pool.append(new_combination_features)
+
+    return(new_generation_pool)
 
 def load_image(image_path):
     img = load_img(image_path, target_size=(img_nrows, img_ncols))
@@ -246,16 +264,21 @@ for layer_name in Learner.feature_layers:
     dims = total_style_reference_features.get_shape()
     d = dims[-1]
 
+    original_pool = make_original_pool(total_style_reference_features, total_style_combination_features) 
+
+    print(original_pool)
+    print("---------")
+
     if dims[1] == 25:
 
         for i in xrange(0, 10):     # number of generations
             
             print("Creating generation: ", i)
-
-            original_pool = make_original_pool(total_style_reference_features, total_style_combination_features)    
           
             total_style_reference_features = original_pool[0]
             total_style_combination_features = original_pool[1]
+
+            del original_pool
 
             losses = list()
 
@@ -301,6 +324,7 @@ for layer_name in Learner.feature_layers:
                 loss = random.randint(0,20)
                 dictionary[style_reference_features]  = loss
 
-            original_pool = filter_and_make_new_generation(dictionary)            
+            tmp = filter_and_make_new_generation(dictionary)       
+            original_pool = tmp 
 
-np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
+#np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
