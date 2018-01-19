@@ -66,7 +66,6 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
     d = dims[-1]
 
     for individual in xrange(1, 11):    #Let's assume we want a population of 10 individuals
-        print("Creating Individual: ", individual)
 
         single_individual_tensor_reference = list()
         single_individual_tensor_combination = list()
@@ -104,8 +103,8 @@ def filter_and_make_new_generation(dictionary):
         children = list()
         
         for parent_1, parent_2 in zip(parents_for_breeding[0::2], parents_for_breeding[1::2]):
-            features_parent_1 = parent_1[:,:,0:5]
-            features_parent_2 = parent_2[:,:,-5:]
+            features_parent_1 = parent_1[:,:,0:10]
+            features_parent_2 = parent_2[:,:,-10:]
             
             children.append(tf.concat([features_parent_1, features_parent_2], 2))
             
@@ -250,11 +249,11 @@ def run_experiment(x):
     for i in range(10):
         print('Optimizing iteration', i)
         x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
-        #print('Current loss value:', min_val)
+        print('Current loss value:', min_val)
         loss_tracker.append(min_val)
         img = deprocess_image(x.copy())
         fname = result_prefix + '_at_iteration_%d.png' % i
-        #imsave("/home/matthia/Desktop/"+fname, img)
+        imsave("/home/matthia/Desktop/"+fname, img)
         #print('Iteration %d completed in %ds' % (i, end_time - start_time))
 
     return np.mean(loss_tracker)
@@ -267,25 +266,26 @@ for layer_name in Learner.feature_layers:
 
     print("Analysing Layer: ", layer_name)
 
-    layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
+    content_layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
+    style_layer_features = Learner.outputs_dict[layer_name]
 
-    total_style_reference_features = layer_features[1, :, :, :]     #Set corresponding to the total pool of features
-                                                                     # our aim is to find the optimal subset in here
-    total_style_combination_features = layer_features[2, :, :, :]
+    total_style_reference_features = style_layer_features[1, :, :, :]     #Set corresponding to the total pool of features
+                                                                    # our aim is to find the optimal subset in here
+    total_style_combination_features = style_layer_features[2, :, :, :]
 
     dims = total_style_reference_features.get_shape()
     d = dims[-1]
 
+    print(dims)
+
     original_pool = make_original_pool(total_style_reference_features, total_style_combination_features) 
 
-    print(original_pool)
-    print("---------")
+    print("Population is ready to get optimized")
 
-    if dims[1] == 25:
-
+    if dims[1] == 50:
         for i in xrange(0, 10):     # number of generations
             
-            print("Creating generation: ", i)
+            print("Computing generation: ", i)
           
             total_style_reference_features = original_pool[0]
             total_style_combination_features = original_pool[1]
@@ -296,12 +296,11 @@ for layer_name in Learner.feature_layers:
 
             for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
 
-                """
                 loss = initialize_loss()
 
-                print("Initialized Loss for Individual")
+                print("Initialized Loss for current generation")
 
-                random_content_features = get_random_content_features(layer_features)
+                random_content_features = get_random_content_features(content_layer_features)
 
                 sampled_base_image_features = random_content_features[0]
                 sampled_combination_image_features =random_content_features[1]
@@ -329,14 +328,14 @@ for layer_name in Learner.feature_layers:
 
                 evaluator = Evaluator()
 
-                #final_loss = run_experiment(x)
+                final_loss = run_experiment(x)
+
+                dictionary[style_reference_features]  = final_loss
+
                 #losses.append(final_loss)
-                """
+                #loss = random.randint(0,20)
+                
+            #tmp = filter_and_make_new_generation(dictionary)       
+            #original_pool = tmp 
 
-                loss = random.randint(0,20)
-                dictionary[style_reference_features]  = loss
-
-            tmp = filter_and_make_new_generation(dictionary)       
-            original_pool = tmp 
-
-#np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
+        #np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
