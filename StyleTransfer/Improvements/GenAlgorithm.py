@@ -32,6 +32,10 @@ style_weight = 1.0
 total_variation_weight = 1.0
 result_prefix = "output"
 
+ground_truth_loss = 3924612000.0
+#ground_truth_loss = 50
+survival_chance = 70
+
 class Evaluator(object):
     def __init__(self):
         self.loss_value = None
@@ -88,34 +92,51 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
     return(reference_population, combination_population)
 
-def filter_and_make_new_generation(dictionary):
+def filter_and_make_new_generation(dictionary, total_style_reference_features, total_content_reference_features):
 
     parents_for_breeding = list()
     new_generation_pool = list()
 
     sorted_population = OrderedDict(sorted(dictionary.items(), key=itemgetter(1)))
-    to_remove = np.mean(sorted_population.values())     #50% is kept
+    survival_threshold = (survival_chance*ground_truth_loss)/100
 
-    filtered_population = {k: v for k, v in sorted_population.iteritems() if v <= to_remove}
+    filtered_population = {k: v for k, v in sorted_population.iteritems() if v >= survival_threshold}
     parents_for_breeding = [tensor for tensor in filtered_population.keys()]
 
     def compute_children(parents_for_breeding):
         children = list()
         
         for parent_1, parent_2 in zip(parents_for_breeding[0::2], parents_for_breeding[1::2]):
-            features_parent_1 = parent_1[:,:,0:10]
-            features_parent_2 = parent_2[:,:,-10:]
+            features_parent_1 = parent_1[:,:,0:5]
+            features_parent_2 = parent_2[:,:,-5:]
             
             children.append(tf.concat([features_parent_1, features_parent_2], 2))
             
         return children
 
+    def make_random_individual(new_reference_features):
+        random_individual = list()
+
+        dims = total_style_reference_features.get_shape()
+        d = dims[-1]
+
+        for i in range(1,11):
+            random_feat = random.randint(0, d-1)
+            random_f_individual = total_style_reference_features[:,:, random_feat]     
+
+            random_individual.append(random_f_individual)
+
+        return(tf.stack(random_individual, axis = 2))
+
     children = compute_children(parents_for_breeding)
     new_reference_features = parents_for_breeding+children
+    random_child = make_random_individual(new_reference_features)
 
-    new_generation_pool.append(new_reference_features)
-    new_combination_features = copy.copy(new_reference_features)
-    new_generation_pool.append(new_combination_features)
+    final_features = new_reference_features + random_child
+
+    new_generation_pool.append(final_features)
+    new_combination_features = copy.copy(final_features)
+    new_generation_pool.append(final_features)
 
     return(new_generation_pool)
 
@@ -244,19 +265,16 @@ def deprocess_image(x):
 
 def run_experiment(x):
 
-    loss_tracker = list()
-
-    for i in range(10):
+    for i in range(1):
         print('Optimizing iteration', i)
         x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
         print('Current loss value:', min_val)
-        loss_tracker.append(min_val)
         img = deprocess_image(x.copy())
         fname = result_prefix + '_at_iteration_%d.png' % i
         imsave("/home/matthia/Desktop/"+fname, img)
         #print('Iteration %d completed in %ds' % (i, end_time - start_time))
 
-    return np.mean(loss_tracker)
+    return(min_val)
 
 x = load_image("mat.jpg")
 
@@ -269,16 +287,14 @@ for layer_name in Learner.feature_layers:
     content_layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
     style_layer_features = Learner.outputs_dict[layer_name]
 
-    total_style_reference_features = style_layer_features[1, :, :, :]     #Set corresponding to the total pool of features
-                                                                    # our aim is to find the optimal subset in here
-    total_style_combination_features = style_layer_features[2, :, :, :]
+    original_total_style_reference_features = style_layer_features[1, :, :, :]     # Set corresponding to the total pool of features
+                                                                                   # our aim is to find the optimal subset in here
+    original_total_style_combination_features = style_layer_features[2, :, :, :]
 
-    dims = total_style_reference_features.get_shape()
+    dims = original_total_style_reference_features.get_shape()
     d = dims[-1]
 
-    print(dims)
-
-    original_pool = make_original_pool(total_style_reference_features, total_style_combination_features) 
+    original_pool = make_original_pool(original_total_style_reference_features, original_total_style_combination_features) 
 
     print("Population is ready to get optimized")
 
@@ -297,9 +313,6 @@ for layer_name in Learner.feature_layers:
             for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
 
                 loss = initialize_loss()
-
-                print("Initialized Loss for current generation")
-
                 random_content_features = get_random_content_features(content_layer_features)
 
                 sampled_base_image_features = random_content_features[0]
@@ -327,15 +340,12 @@ for layer_name in Learner.feature_layers:
                 f_outputs = K.function([Learner.combination_image], outputs)
 
                 evaluator = Evaluator()
-
+                
                 final_loss = run_experiment(x)
 
                 dictionary[style_reference_features]  = final_loss
-
-                #losses.append(final_loss)
-                #loss = random.randint(0,20)
                 
-            #tmp = filter_and_make_new_generation(dictionary)       
-            #original_pool = tmp 
+            tmp = filter_and_make_new_generation(dictionary)
+            original_pool = tmp 
 
         #np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
