@@ -69,7 +69,7 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
     dims = total_style_reference_features.get_shape()
     d = dims[-1]
 
-    for individual in xrange(1, 11):    #Let's assume we want a population of 10 individuals
+    for individual in xrange(1, 10):    #Let's assume we want a population of 10 individuals
 
         single_individual_tensor_reference = list()
         single_individual_tensor_combination = list()
@@ -94,8 +94,11 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
 def filter_and_make_new_generation(dictionary, total_style_reference_features, total_content_reference_features):
 
+    final_population = list()
+
     parents_for_breeding = list()
     new_generation_pool = list()
+    new_reference_features = list()
 
     sorted_population = OrderedDict(sorted(dictionary.items(), key=itemgetter(1)))
     survival_threshold = (survival_chance*ground_truth_loss)/100
@@ -104,15 +107,19 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
     parents_for_breeding = [tensor for tensor in filtered_population.keys()]
 
     def compute_children(parents_for_breeding):
+
         children = list()
-        
+
         for parent_1, parent_2 in zip(parents_for_breeding[0::2], parents_for_breeding[1::2]):
             features_parent_1 = parent_1[:,:,0:5]
             features_parent_2 = parent_2[:,:,-5:]
             
             children.append(tf.concat([features_parent_1, features_parent_2], 2))
-            
+
         return children
+
+    children = compute_children(parents_for_breeding)
+    new_reference_features = parents_for_breeding + children
 
     def make_random_individual(new_reference_features):
         random_individual = list()
@@ -128,15 +135,18 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
 
         return(tf.stack(random_individual, axis = 2))
 
-    children = compute_children(parents_for_breeding)
-    new_reference_features = parents_for_breeding+children
     random_child = make_random_individual(new_reference_features)
 
-    final_features = new_reference_features + random_child
+    a = [random_child]
 
-    new_generation_pool.append(final_features)
-    new_combination_features = copy.copy(final_features)
-    new_generation_pool.append(final_features)
+    final_population.extend(new_reference_features)
+    final_population.extend(a)
+
+    final_population.pop(random.randint(0,len(final_population)-1))
+
+    new_generation_pool.append(final_population)
+    new_combination_features = copy.copy(final_population)
+    new_generation_pool.append(final_population)
 
     return(new_generation_pool)
 
@@ -302,16 +312,15 @@ for layer_name in Learner.feature_layers:
         for i in xrange(0, 10):     # number of generations
             
             print("Computing generation: ", i)
+            time.sleep(1)
           
             total_style_reference_features = original_pool[0]
             total_style_combination_features = original_pool[1]
 
             del original_pool
 
-            losses = list()
-
             for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
-
+                
                 loss = initialize_loss()
                 random_content_features = get_random_content_features(content_layer_features)
 
@@ -342,10 +351,12 @@ for layer_name in Learner.feature_layers:
                 evaluator = Evaluator()
                 
                 final_loss = run_experiment(x)
+               
+                #final_loss = random.randint(0,100)
 
                 dictionary[style_reference_features]  = final_loss
                 
-            tmp = filter_and_make_new_generation(dictionary)
+            tmp = filter_and_make_new_generation(dictionary,original_total_style_reference_features, original_total_style_combination_features)
             original_pool = tmp 
 
         #np.save("Loss_behaviour_in_function_of_features.npy", loss_tracker)
