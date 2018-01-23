@@ -232,6 +232,8 @@ x = load_image("mat.jpg")
 
 for layer_name in Learner.feature_layers:
 
+    solution_set = list()
+
     print("Analysing Layer: ", layer_name)
 
     content_layer_features = Learner.outputs_dict['block5_conv2']   #Keep it the same!
@@ -241,7 +243,7 @@ for layer_name in Learner.feature_layers:
                                                                                    # our aim is to find the optimal subset in here
     total_style_combination_features = style_layer_features[2, :, :, :]
 
-    original_pool = compute_starting_solution(original_total_style_reference_features, original_total_style_combination_features) 
+    original_pool = compute_starting_solution(total_style_reference_features, total_style_combination_features) 
 
     print("Starting Solution Set is computed")
 
@@ -249,39 +251,66 @@ for layer_name in Learner.feature_layers:
     S_0_style_combination_features = original_pool[1]
     S_0_feature_positions = original_pool[2]
 
-    create_neighbour_solution(total_style_reference_features, total_style_combination_features, S_0_feature_positions)
+    solution_set.append([S_0_style_combination_features, S_0_style_combination_features])
 
     while True:
 
-        loss = initialize_loss()
-        random_content_features = get_random_content_features(content_layer_features)
+        best_loss = 0
+        best_set = None
 
-        sampled_base_image_features = random_content_features[0]
-        sampled_combination_image_features =random_content_features[1]
+        create_neighbour_solution(total_style_reference_features, total_style_combination_features, S_0_feature_positions)
 
-        loss += content_weight * radial_basis_content_loss(sampled_base_image_features, sampled_combination_image_features)
+        S_1_style_reference_features = original_pool[0]
+        S_1_style_combination_features = original_pool[1]
+        S_1_feature_positions = original_pool[2]
 
-        print("Content Loss computed")
+        solution_set.append([S_1_style_combination_features, S_1_style_reference_features])
 
-        sl = prepare_style_loss(style_reference_features, style_combination_features)
-        loss += (style_weight / len(Learner.feature_layers)) * sl                    
+        for i in range(0, len(solution_set)-1):
 
-        print("Style Loss computed")
+            print("Analysing Set: ", solution_set[i])
 
-        loss += total_variation_weight * total_variation_loss(Learner.combination_image)
-        grads = K.gradients(loss, Learner.combination_image)
+            """
+            loss = initialize_loss()
+            random_content_features = get_random_content_features(content_layer_features)
 
-        outputs = [loss]
+            sampled_base_image_features = random_content_features[0]
+            sampled_combination_image_features =random_content_features[1]
 
-        if isinstance(grads, (list, tuple)):
-            outputs += grads
-        else:
-            outputs.append(grads)
+            loss += content_weight * radial_basis_content_loss(sampled_base_image_features, sampled_combination_image_features)
 
-        f_outputs = K.function([Learner.combination_image], outputs)
+            print("Content Loss computed")
 
-        evaluator = Evaluator()
-        
-        final_loss = run_experiment(x)
+            sl = prepare_style_loss(style_reference_features, style_combination_features)
+            loss += (style_weight / len(Learner.feature_layers)) * sl                    
+
+            print("Style Loss computed")
+
+            loss += total_variation_weight * total_variation_loss(Learner.combination_image)
+            grads = K.gradients(loss, Learner.combination_image)
+
+            outputs = [loss]
+
+            if isinstance(grads, (list, tuple)):
+                outputs += grads
+            else:
+                outputs.append(grads)
+
+            f_outputs = K.function([Learner.combination_image], outputs)
+
+            evaluator = Evaluator()
+            
+            final_loss = run_experiment(x)
+            """
+            
+            loss = random.randint(0,20)
+
+            if (best_loss - loss) < 0:
+                solution_set.pop(0)
+                best_loss = loss
+                best_set = solution_set[i]
+
+            else:
+                print("Niente")
 
 
