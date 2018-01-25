@@ -34,7 +34,7 @@ result_prefix = "output"
 
 #ground_truth_loss = 3924612000.0
 #ground_truth_loss = 50
-survival_chance = 50
+survival_chance = 80
 
 class Evaluator(object):
     def __init__(self):
@@ -94,7 +94,7 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
 def filter_and_make_new_generation(dictionary, total_style_reference_features, total_content_reference_features):
 
-    print(dictionary)
+    print(len(dictionary))
 
     def remove_duplicate_soultions():
             raw_population = {}
@@ -158,6 +158,7 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
         return mutated_features
 
     mutated_features = make_random_mutation(new_reference_features)
+    final_population.extend(mutated_features)
 
     def make_random_individual(new_reference_features):
         random_individual = list()
@@ -173,14 +174,19 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
 
         return(tf.stack(random_individual, axis = 2))
 
-    random_child = make_random_individual(new_reference_features)
+    while(True):
 
-    a = [random_child]
+        """
+        We assert that the new generation is as big as the original one by adding new features 
+        """ 
 
-    final_population.extend(mutated_features)
-    final_population.extend(a)
+        random_individuals = list()
+        random_individuals.append(make_random_individual(new_reference_features))
 
-    final_population.pop(random.randint(0,len(final_population)-1))
+        final_population.extend(random_individuals)
+
+        if len(dictionary) == len(final_population):
+            break
 
     new_generation_pool.append(final_population)
 
@@ -343,10 +349,8 @@ for layer_name in Learner.feature_layers:
 
     original_pool = make_original_pool(original_total_style_reference_features, original_total_style_combination_features) 
 
-    print("Population is ready to get optimized")
-
     if dims[1] == 50:
-        for i in xrange(0, 10):     # number of generations
+        for i in xrange(0, 20):     # number of generations
             
             print("Computing generation: ", i)
             time.sleep(1)
@@ -396,7 +400,7 @@ for layer_name in Learner.feature_layers:
 
                 """
 
-                final_loss = random.randint(0,10)
+                final_loss = random.randint(0,100)
                 dictionary[style_reference_features]  = final_loss
                                 
             tmp = filter_and_make_new_generation(dictionary, original_total_style_reference_features, original_total_style_combination_features)
