@@ -94,11 +94,7 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
 def filter_and_make_new_generation(f_dict, ref_dict, total_style_reference_features, total_content_reference_features, tmp_style_features, tmp_content_features):
 
-    print(f_dict)
-    print(len(f_dict))
-
-    """
-    def remove_duplicate_soultions():
+    def remove_duplicate_soultions(dictionary):
             raw_population = {}
 
             for key,value in dictionary.items():
@@ -107,11 +103,8 @@ def filter_and_make_new_generation(f_dict, ref_dict, total_style_reference_featu
 
             return(raw_population)
     
-    raw_population = remove_duplicate_soultions()
-
-    print(raw_population)
-
-    """
+    f_dict = remove_duplicate_soultions(f_dict)
+    ref_dict = remove_duplicate_soultions(ref_dict)
 
     ground_truth_loss = max(f_dict.values())
 
@@ -413,7 +406,7 @@ for layer_name in Learner.feature_layers:
             ref_dictionary = {}
 
             for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
-                
+                """
                 loss = initialize_loss()
                 random_content_features = get_random_content_features(content_layer_features)
 
@@ -447,8 +440,9 @@ for layer_name in Learner.feature_layers:
 
                 del loss
                 del evaluator
+                """
 
-                #final_loss = random.randint(0,100)
+                final_loss = random.randint(0,100)
                 
                 feat_dictionary[style_reference_features]  = final_loss
                 ref_dictionary[style_combination_features] = final_loss    
