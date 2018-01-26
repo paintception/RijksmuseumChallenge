@@ -92,10 +92,12 @@ def make_original_pool(total_style_reference_features, total_style_combination_f
 
     return(reference_population, combination_population)
 
-def filter_and_make_new_generation(dictionary, total_style_reference_features, total_content_reference_features):
+def filter_and_make_new_generation(f_dict, ref_dict, total_style_reference_features, total_content_reference_features, tmp_style_features, tmp_content_features):
 
-    print(len(dictionary))
+    print(f_dict)
+    print(len(f_dict))
 
+    """
     def remove_duplicate_soultions():
             raw_population = {}
 
@@ -107,37 +109,71 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
     
     raw_population = remove_duplicate_soultions()
 
-    ground_truth_loss = max(raw_population.values())
+    print(raw_population)
 
-    final_population = list()
+    """
+
+    ground_truth_loss = max(f_dict.values())
 
     parents_for_breeding = list()
     new_generation_pool = list()
+
     new_reference_features = list()
 
     survival_threshold = (survival_chance*ground_truth_loss)/100
 
-    filtered_population = {k: v for k, v in raw_population.iteritems() if v >= survival_threshold}
+    filtered_population = {k: v for k, v in f_dict.iteritems() if v >= survival_threshold}
+    filtered_references = {k: v for k, v in ref_dict.iteritems() if v >= survival_threshold}
 
     parents_for_breeding = [tensor for tensor in filtered_population.keys()]
+    references_for_breeding = [tensor for tensor in filtered_references.keys()]
 
-    def compute_children(parents_for_breeding):
+    print("Beginning of breeding")
 
-        children = list()
+    def compute_children_features(parents_for_breeding):
+
+        children_features = list()
 
         for parent_1, parent_2 in zip(parents_for_breeding[0::2], parents_for_breeding[1::2]):
             features_parent_1 = parent_1[:,:,0:5]
             features_parent_2 = parent_2[:,:,-5:]
             
-            children.append(tf.concat([features_parent_1, features_parent_2], 2))
+            children_features.append(tf.concat([features_parent_1, features_parent_2], 2))
 
-        return children
+        return children_features
 
-    children = compute_children(parents_for_breeding)
-    new_reference_features = parents_for_breeding + children
+    def compute_reference_features(references_for_breeding):
 
-    dims = total_style_reference_features.get_shape()
-    d = dims[-1]
+        reference_features = list()
+
+        for parent_1, parent_2 in zip(references_for_breeding[0::2], references_for_breeding[1::2]):  
+            features_parent_1 = parent_1[:,:,0:5]
+            features_parent_2 = parent_2[:,:,-5:]
+            
+            reference_features.append(tf.concat([features_parent_1, features_parent_2], 2))
+
+        return reference_features
+
+
+    print("End of breeding")
+
+    children_features = compute_children_features(parents_for_breeding)
+    reference_features = compute_reference_features(references_for_breeding) 
+
+    tmp_f = list()
+    tmp_r = list()
+
+    tmp_f.append(parents_for_breeding)
+    tmp_f.append(children_features)
+    tmp_r.append(references_for_breeding)
+    tmp_r.append(reference_features)
+
+    new_features_population = [item for sublist in tmp_f for item in sublist]
+    new_reference_features = [item for sublist in tmp_r for item in sublist]
+
+    """
+    #dims = total_style_reference_features.get_shape()
+    #d = dims[-1]
 
     def make_random_mutation(new_reference_features):
 
@@ -158,40 +194,54 @@ def filter_and_make_new_generation(dictionary, total_style_reference_features, t
         return mutated_features
 
     mutated_features = make_random_mutation(new_reference_features)
-    final_population.extend(mutated_features)
 
-    def make_random_individual(new_reference_features):
+    mutated_features = filtered_population
+    final_population.extend(mutated_features)
+    #final_population.extend(filtered_population)
+
+    new_reference_features = raw_population
+
+    """
+
+    def make_random_individual():
         random_individual = list()
+        random_ref = list()
 
         dims = total_style_reference_features.get_shape()
         d = dims[-1]
 
-        for i in range(1,10):
+        for i in range(0,10):
             random_feat = random.randint(0, d-1)
+            
             random_f_individual = total_style_reference_features[:,:, random_feat]     
+            random_r_individual = total_content_reference_features[:,:, random_feat]
 
             random_individual.append(random_f_individual)
+            random_ref.append(random_r_individual)
 
-        return(tf.stack(random_individual, axis = 2))
+        return(tf.stack(random_individual, axis = 2), tf.stack(random_ref, axis = 2))
 
-    while(True):
+    if len(new_features_population) < len(f_dict):
+        while(True):
 
-        """
-        We assert that the new generation is as big as the original one by adding new features 
-        """ 
+            print("replacing")
 
-        random_individuals = list()
-        random_individuals.append(make_random_individual(new_reference_features))
+            random_individuals = list()
+            random_references = list()
 
-        final_population.extend(random_individuals)
+            new = make_random_individual()
 
-        if len(dictionary) == len(final_population):
-            break
+            random_individuals.append(new[0])
+            random_references.append(new[1])
 
-    new_generation_pool.append(final_population)
+            new_features_population.extend(random_individuals)
+            new_reference_features.extend(random_references)
 
-    new_combination_features = copy.copy(final_population)
-    new_generation_pool.append(final_population)
+            if len(f_dict) == len(new_features_population):
+                break
+
+    new_generation_pool.append(new_features_population)
+    new_generation_pool.append(new_reference_features)
 
     return(new_generation_pool)
 
@@ -321,7 +371,6 @@ def deprocess_image(x):
 def run_experiment(x):
 
     for i in range(1):
-        print('Optimizing iteration', i)
         x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
         print('Current loss value:', min_val)
         img = deprocess_image(x.copy())
@@ -360,12 +409,11 @@ for layer_name in Learner.feature_layers:
 
             del original_pool
             
-            dictionary = {}
+            feat_dictionary = {}
+            ref_dictionary = {}
 
             for style_reference_features, style_combination_features in zip(total_style_reference_features, total_style_combination_features):
                 
-                """
-
                 loss = initialize_loss()
                 random_content_features = get_random_content_features(content_layer_features)
 
@@ -396,16 +444,18 @@ for layer_name in Learner.feature_layers:
                 evaluator = Evaluator()
                 
                 final_loss = run_experiment(x)
-               
 
-                """
+                del loss
+                del evaluator
 
-                final_loss = random.randint(0,100)
-                dictionary[style_reference_features]  = final_loss
-                                
-            tmp = filter_and_make_new_generation(dictionary, original_total_style_reference_features, original_total_style_combination_features)
+                #final_loss = random.randint(0,100)
+                
+                feat_dictionary[style_reference_features]  = final_loss
+                ref_dictionary[style_combination_features] = final_loss    
 
-            del dictionary
+            tmp = filter_and_make_new_generation(feat_dictionary, ref_dictionary, original_total_style_reference_features, original_total_style_combination_features, total_style_reference_features, total_style_combination_features)    #send the ones picked up in generation 1
+
+            #del dictionary
 
             original_pool = tmp 
 
